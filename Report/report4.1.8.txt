@@ -1,0 +1,131 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 205
+SET PAGESIZE 50
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY'; 
+
+-- Prompt user to input
+ACCEPT input_year DATE FORMAT 'YYYY' PROMPT 'Enter the year (YYYY): '
+
+CREATE OR REPLACE PROCEDURE SalesByEmployeeQuarterlyReport(input_year IN NUMBER) AS
+  total_q1_sales NUMBER(9,2) := 0;
+  total_q2_sales NUMBER(9,2) := 0;
+  total_q3_sales NUMBER(9,2) := 0;
+  total_q4_sales NUMBER(9,2) := 0;
+  total_q1_sales_quantity NUMBER(4) := 0;
+  total_q2_sales_quantity NUMBER(4) := 0;
+  total_q3_sales_quantity NUMBER(4) := 0;
+  total_q4_sales_quantity NUMBER(4) := 0;
+  grand_total_sales NUMBER(9,2) := 0;
+
+  CURSOR c_sales IS
+    SELECT 
+      RANK() OVER (ORDER BY SUM(f.food_price * oi.order_quantity) DESC) AS rank,
+      e.employee_id, 
+      e.first_name || ' ' || e.last_name AS employee_name,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 1 AND 3 THEN f.food_price * oi.order_quantity ELSE 0 END) AS q1_sales,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 1 AND 3 THEN oi.order_quantity ELSE 0 END) AS q1_sales_quantity,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 4 AND 6 THEN f.food_price * oi.order_quantity ELSE 0 END) AS q2_sales,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 4 AND 6 THEN oi.order_quantity ELSE 0 END) AS q2_sales_quantity,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 7 AND 9 THEN f.food_price * oi.order_quantity ELSE 0 END) AS q3_sales,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 7 AND 9 THEN oi.order_quantity ELSE 0 END) AS q3_sales_quantity,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 10 AND 12 THEN f.food_price * oi.order_quantity ELSE 0 END) AS q4_sales,
+      SUM(CASE WHEN EXTRACT(MONTH FROM o.order_date) BETWEEN 10 AND 12 THEN oi.order_quantity ELSE 0 END) AS q4_sales_quantity
+    FROM Employees e
+    JOIN Orders o ON e.employee_id = o.cashier_id
+    JOIN Order_Item oi ON o.order_id = oi.order_id
+    JOIN Food_Item f ON oi.food_id = f.food_id
+    WHERE EXTRACT(YEAR FROM o.order_date) = input_year
+    GROUP BY e.employee_id, e.first_name, e.last_name
+    ORDER BY SUM(f.food_price * oi.order_quantity) DESC;
+BEGIN
+    -- Title
+    DBMS_OUTPUT.PUT_LINE(LPAD('=', 198, '='));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Report Generated On:', 172, ' ') || TO_CHAR(SYSDATE, 'DD/MM/YYYY HH24:MI:SS') || '    |');
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 195) || '|'); 
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Summary Report', 109, ' ') || LPAD(' | ', 88));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Sales By Employee: Best Selling Employees for the Year: ' || input_year, 132) || LPAD(' | ', 65));
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD(' ', 194) || ' | ');
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 198, '-'));
+
+    -- Header
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD('Rank', 5) || ' | ' ||
+                         RPAD('Employee ID', 11) || ' | ' ||
+                         RPAD('Employee Name', 23) || ' | ' ||
+                         RPAD('Q1 Sales (USD)', 14) || ' | ' ||
+                         RPAD('Q1 Quantity', 12) || ' | ' ||
+                         RPAD('Q2 Sales (USD)', 14) || ' | ' ||
+                         RPAD('Q2 Quantity', 12) || ' | ' ||
+                         RPAD('Q3 Sales (USD)', 14) || ' | ' ||
+                         RPAD('Q3 Quantity', 12) || ' | ' ||
+                         RPAD('Q4 Sales (USD)', 14) || ' | ' ||
+                         RPAD('Q4 Quantity', 12) || ' | ' ||
+                         RPAD('Sales Amount (USD)', 18) || ' | ');
+
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 198, '-'));
+
+  FOR r_sales IN c_sales LOOP
+
+    DBMS_OUTPUT.PUT_LINE('| ' ||
+                     LPAD(r_sales.rank, 5) || ' | ' ||
+                     LPAD(r_sales.employee_id, 11) || ' | ' ||
+                     RPAD(r_sales.employee_name, 23) || ' | ' ||
+                     LPAD(TO_CHAR(r_sales.q1_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(r_sales.q1_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(r_sales.q2_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(r_sales.q2_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(r_sales.q3_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(r_sales.q3_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(r_sales.q4_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(r_sales.q4_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(r_sales.q1_sales + r_sales.q2_sales + r_sales.q3_sales + r_sales.q4_sales, '99999999.99'), 18) || ' | ');
+
+
+    -- Accumulating totals for the final row
+    total_q1_sales := total_q1_sales + r_sales.q1_sales;
+    total_q2_sales := total_q2_sales + r_sales.q2_sales;
+    total_q3_sales := total_q3_sales + r_sales.q3_sales;
+    total_q4_sales := total_q4_sales + r_sales.q4_sales;
+    total_q1_sales_quantity := total_q1_sales_quantity + r_sales.q1_sales_quantity;
+    total_q2_sales_quantity := total_q2_sales_quantity + r_sales.q2_sales_quantity;
+    total_q3_sales_quantity := total_q3_sales_quantity + r_sales.q3_sales_quantity;
+    total_q4_sales_quantity := total_q4_sales_quantity + r_sales.q4_sales_quantity;
+  END LOOP;
+
+  -- Print totals
+    grand_total_sales := total_q1_sales + total_q2_sales + total_q3_sales + total_q4_sales;
+
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 198, '-'));
+  
+    DBMS_OUTPUT.PUT_LINE('| ' ||
+                     'Total' || ' | ' ||
+                     '           ' || ' | ' || -- Empty Employee ID
+                     '                       ' || ' | ' || -- Empty Employee Name
+                     LPAD(TO_CHAR(total_q1_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(total_q1_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(total_q2_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(total_q2_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(total_q3_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(total_q3_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(total_q4_sales, '99999999.99'), 14) || ' | ' ||
+                     LPAD(total_q4_sales_quantity, 12) || ' | ' ||
+                     LPAD(TO_CHAR(grand_total_sales, '99999999.99'), 18) || ' | ');
+
+-- Footer
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 198, '-'));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 195) ||'|'); 
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('End Of Report', 108, ' ') || ' ' || LPAD(' | ', 88));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 195) || '|'); 
+    DBMS_OUTPUT.PUT_LINE(LPAD('=', 198, '='));
+
+END SalesByEmployeeQuarterlyReport;
+/
+
+-- Execute the procedure
+EXEC SalesByEmployeeQuarterlyReport(&input_year);
+
+--- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

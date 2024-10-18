@@ -1,0 +1,32 @@
+-- Test case for RecordCustomerFeedback procedure
+DECLARE
+    v_feedback_id NUMBER;
+BEGIN
+    -- Test 1: Valid feedback
+    BEGIN
+        RecordCustomerFeedback(4, 'This product is excellent!', 1, 1);
+        DBMS_OUTPUT.PUT_LINE('Test 1: Valid feedback recorded successfully.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 1: Error - ' || SQLERRM);
+    END;
+
+    -- Test 2: Invalid feedback rating (should raise an error)
+    BEGIN
+        RecordCustomerFeedback(6, 'This product is great!', 1, 1);
+        DBMS_OUTPUT.PUT_LINE('Test 2: Invalid feedback rating - Error not raised.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 2: Invalid feedback rating - ' || SQLERRM);
+    END;
+
+    -- Test 3: Inappropriate language in feedback (should raise an error)
+    BEGIN
+        RecordCustomerFeedback(3, 'This product is ****!', 1, 1);
+        DBMS_OUTPUT.PUT_LINE('Test 3: Inappropriate language - Error not raised.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Test 3: Inappropriate language - ' || SQLERRM);
+    END;
+END;
+/

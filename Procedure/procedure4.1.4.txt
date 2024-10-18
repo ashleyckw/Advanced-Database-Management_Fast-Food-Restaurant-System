@@ -1,0 +1,60 @@
+CREATE OR REPLACE PROCEDURE Delete_Customer_Account (
+    p_customer_id NUMBER
+) AS
+    customer_not_found EXCEPTION;
+    PRAGMA EXCEPTION_INIT (customer_not_found, -20001);
+BEGIN
+    -- Check if the customer exists
+    DECLARE
+        v_customer_count NUMBER;
+    BEGIN
+        SELECT COUNT(*)
+        INTO v_customer_count
+        FROM Customers
+        WHERE customer_id = p_customer_id;
+
+        IF v_customer_count = 0 THEN
+            RAISE customer_not_found;
+        END IF;
+    END;
+
+    -- Anonymize sensitive data and delete customer-related information
+    BEGIN
+        UPDATE Contacts
+        SET email = 'deleted_' || contact_id || '@example.com',
+            phone = '+00 000 000 0000'
+        WHERE customer_id = p_customer_id;
+
+        UPDATE Address
+        SET street_line = 'Anonymized',
+            postal_code = '00000',
+            city = 'Anonymized',
+            state = 'Anonymized',
+            country_id = NULL
+        WHERE customer_id = p_customer_id;
+
+        UPDATE Feedback
+        SET feedback_rating = 0,
+            feedback_comment = 'Anonymized'
+        WHERE customer_id = p_customer_id;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- Handle exceptions
+            ROLLBACK;
+            DBMS_OUTPUT.PUT_LINE('Error during data anonymization and deletion: ' || SQLERRM);
+            RETURN;
+    END;
+
+    -- Commit the changes
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Customer account deleted and data anonymized successfully.');
+EXCEPTION
+    WHEN customer_not_found THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Customer with ID ' || p_customer_id || ' not found.');
+    WHEN OTHERS THEN
+        -- Handle other exceptions
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END Delete_Customer_Account;
+/

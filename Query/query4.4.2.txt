@@ -1,0 +1,61 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 200
+SET PAGESIZE 100
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt user for input
+ACCEPT customer_id CHAR PROMPT 'Enter Customer ID (leave blank for all): '
+ACCEPT start_date DATE FORMAT 'DD/MM/YYYY' PROMPT 'Enter Start Date (DD/MM/YYYY): '
+ACCEPT end_date DATE FORMAT 'DD/MM/YYYY' PROMPT 'Enter End Date (DD/MM/YYYY): '
+
+---- Title
+TTITLE LEFT 'Query Generated On: ' _DATE SKIP 3 CENTER 'Comprehensive Customer Order History: Date Ranging from &start_date to &end_date' SKIP 1 CENTER '=========================================================================================' SKIP 2
+BREAK ON customer_id SKIP 1 ON order_date
+
+-- Column formatting
+COLUMN customer_id FORMAT 999999 HEADING "Customer ID"
+COLUMN customer_order_id FORMAT 999999 HEADING "Order ID"
+COLUMN order_date FORMAT A12 HEADING "Order Date"
+COLUMN food_name FORMAT A25 HEADING "Food Name"
+COLUMN food_description FORMAT A60 HEADING "Food Description"
+COLUMN order_status FORMAT A15 HEADING "Order Status"
+COLUMN order_quantity FORMAT 9999 HEADING "Order Quantity"
+COLUMN food_price FORMAT 999999999.99 HEADING "Food Price (USD)"
+
+-- Query
+SELECT
+    c.customer_id AS customer_id,
+    o.order_id AS customer_order_id,
+    o.order_date AS order_date,
+    fi.food_name AS food_name,
+    fi.food_description AS food_description,
+    o.order_status AS order_status,
+    SUM(oi.order_quantity) AS order_quantity,
+    SUM(fi.food_price) AS food_price
+FROM
+    Customers c
+JOIN
+    Orders o ON c.customer_id = o.customer_id
+JOIN
+    Order_Item oi ON o.order_id = oi.order_id
+JOIN
+    Food_Item fi ON oi.food_id = fi.food_id
+WHERE
+    (TO_NUMBER('&customer_id') = -9999 OR c.customer_id = TO_NUMBER('&customer_id') OR '&customer_id' IS NULL)
+    AND o.order_date BETWEEN '&start_date' AND '&end_date'
+GROUP BY
+    c.customer_id,
+    o.order_date,
+    o.order_id,
+    fi.food_name,
+    fi.food_description,
+    o.order_status
+ORDER BY
+    o.order_date;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

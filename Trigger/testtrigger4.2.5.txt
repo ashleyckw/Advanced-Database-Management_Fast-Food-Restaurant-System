@@ -1,0 +1,11 @@
+-- Insert a new customer
+INSERT INTO Customers (customer_id, first_name, last_name) VALUES (customer_audit_seq.NEXTVAL, 'John', 'Doe');
+
+-- Update an existing customer
+UPDATE Customers SET last_name = 'Smith' WHERE first_name = 'John';
+
+-- Delete a customer
+DELETE FROM Customers WHERE first_name = 'John';
+
+-- Check the records in the Customer_Audit_Log table
+SELECT * FROM Customer_Audit_Log;

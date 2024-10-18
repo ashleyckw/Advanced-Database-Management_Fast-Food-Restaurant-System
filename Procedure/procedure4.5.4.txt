@@ -1,0 +1,82 @@
+-- Create a PL/SQL Procedure for Updating Employee Details
+CREATE OR REPLACE PROCEDURE UpdateEmployeeDetails (
+    p_employee_id IN NUMBER,
+    p_first_name IN VARCHAR2,
+    p_last_name IN VARCHAR2,
+    p_email IN VARCHAR2,
+    p_phone IN VARCHAR2,
+    p_hire_date IN DATE,
+    p_manager_id IN NUMBER,
+    p_job_title IN VARCHAR2,
+    p_restaurant_id IN NUMBER
+) AS
+    v_employee_exists NUMBER;
+    v_manager_exists NUMBER;
+    v_restaurant_exists NUMBER;
+BEGIN
+    -- Check if the employee exists
+    SELECT COUNT(*)
+    INTO v_employee_exists
+    FROM Employees
+    WHERE employee_id = p_employee_id;
+
+    IF v_employee_exists = 0 THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Employee with ID ' || p_employee_id || ' not found.');
+        RETURN;
+    END IF;
+
+    -- Check if the specified manager exists
+    IF p_manager_id IS NOT NULL THEN
+        SELECT COUNT(*)
+        INTO v_manager_exists
+        FROM Employees
+        WHERE employee_id = p_manager_id;
+
+        IF v_manager_exists = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Error: Manager with ID ' || p_manager_id || ' not found.');
+            RETURN;
+        END IF;
+    END IF;
+
+    -- Check if the specified restaurant exists
+    IF p_restaurant_id IS NOT NULL THEN
+        SELECT COUNT(*)
+        INTO v_restaurant_exists
+        FROM Restaurant_Branch
+        WHERE restaurant_id = p_restaurant_id;
+
+        IF v_restaurant_exists = 0 THEN
+            DBMS_OUTPUT.PUT_LINE('Error: Restaurant with ID ' || p_restaurant_id || ' not found.');
+            RETURN;
+        END IF;
+    END IF;
+
+    BEGIN
+        -- Update employee details
+        UPDATE Employees
+        SET
+            first_name = p_first_name,
+            last_name = p_last_name,
+            email = p_email,
+            phone = p_phone,
+            hire_date = p_hire_date,
+            manager_id = p_manager_id,
+            job_title = p_job_title,
+            restaurant_id = p_restaurant_id
+        WHERE
+            employee_id = p_employee_id;
+
+        -- Commit the transaction
+        COMMIT;
+        DBMS_OUTPUT.PUT_LINE('Success: Employee details updated successfully.');
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Error: ' || SQLCODE || ' - ' || SQLERRM);
+            ROLLBACK;
+    END;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Handle errors related to the employee check
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLCODE || ' - ' || SQLERRM);
+END UpdateEmployeeDetails;
+/

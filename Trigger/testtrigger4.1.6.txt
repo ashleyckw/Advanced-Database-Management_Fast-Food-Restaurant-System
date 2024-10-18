@@ -1,0 +1,13 @@
+-- Create a sample Purchase_Order
+-- Replace with actual values as needed
+INSERT INTO Purchase_Order (purchase_order_id, delivery_date)
+VALUES (PURCHASE_ORDER_SEQ.nextval, SYSDATE);  -- Assume purchase_order_id 1 corresponds to a stock item
+
+-- Commit the transaction to trigger the AFTER INSERT trigger
+COMMIT;
+
+-- Verify the changes in Stock_Item
+-- Replace 'X' with the expected stock_id
+SELECT stock_quantity, last_stock_update
+FROM Stock_Item
+WHERE stock_id = 1;

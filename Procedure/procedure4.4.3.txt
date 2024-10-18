@@ -1,0 +1,46 @@
+-- Create a procedure to record customer feedback
+CREATE OR REPLACE PROCEDURE RecordCustomerFeedback(
+    p_feedback_rating NUMBER,
+    p_feedback_comment VARCHAR2,
+    p_order_id NUMBER,
+    p_customer_id NUMBER
+) AS
+    v_feedback_id NUMBER;
+    v_curse_words VARCHAR2(255) := 'fuck|cibai|lanjiao'; -- Add inappropriate words here
+    v_existing_feedback NUMBER;
+BEGIN
+    -- Check if the feedback rating is valid
+    IF p_feedback_rating < 0 OR p_feedback_rating > 5 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Invalid feedback rating. Rating must be between 0 and 5.');
+    END IF;
+
+    -- Check if feedback already exists for the given order
+    SELECT COUNT(*) INTO v_existing_feedback
+    FROM Feedback
+    WHERE order_id = p_order_id;
+
+    IF v_existing_feedback > 0 THEN
+        RAISE_APPLICATION_ERROR(-20003, 'Feedback already exists for this order.');
+    END IF;
+
+    -- Check for curse words in the feedback comment
+    FOR c_word IN (SELECT REGEXP_SUBSTR(p_feedback_comment, '[[:alnum:]_]+', 1, LEVEL) AS word
+                   FROM DUAL
+                   CONNECT BY LEVEL <= REGEXP_COUNT(p_feedback_comment, '[[:alnum:]_]+'))
+    LOOP
+        IF REGEXP_LIKE(c_word.word, v_curse_words, 'i') THEN
+            RAISE_APPLICATION_ERROR(-20002, 'Inappropriate language detected in the feedback comment.');
+        END IF;
+    END LOOP;
+
+    -- Insert the feedback into the Feedback table
+    INSERT INTO Feedback (feedback_id, feedback_rating, feedback_comment, feedback_date, order_id, customer_id)
+    VALUES (FEEDBACK_SEQ.NEXTVAL, p_feedback_rating, p_feedback_comment, SYSDATE, p_order_id, p_customer_id);
+
+    COMMIT;
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        RAISE;
+END RecordCustomerFeedback;
+/

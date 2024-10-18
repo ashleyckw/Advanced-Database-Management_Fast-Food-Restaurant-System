@@ -1,0 +1,63 @@
+SET SERVEROUTPUT ON;
+SET LINESIZE 130; 
+SET PAGESIZE 40;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Create a Global Temporary Table for the report
+CREATE GLOBAL TEMPORARY TABLE temp_popular_items (
+    country_id VARCHAR2(10),
+    country_name VARCHAR2(50),
+    location_id VARCHAR2(255),
+    address VARCHAR2(255),
+    food_name VARCHAR2(255),
+    total_ordered NUMBER
+) ON COMMIT DELETE ROWS;
+
+-- Generate report title and format
+TTITLE LEFT 'Report Generated On: ' _DATE RIGHT 'Page No.: ' FORMAT 999 SQL.PNO SKIP 3 CENTER 'Top 10 Most Popular Items by Restaurant in Each Country Report' SKIP 1 CENTER '===========================================================' SKIP 2
+BREAK ON country_id SKIP 1 ON country_name SKIP 1 ON location_id SKIP 1 ON address SKIP 1;
+
+-- Formatting the output columns
+COLUMN country_id FORMAT A10 HEADING "Country ID"
+COLUMN country_name FORMAT A20 HEADING "Country Name" 
+COLUMN location_id FORMAT A12 HEADING "Location ID"
+COLUMN address FORMAT A30 HEADING "Address"
+COLUMN food_name FORMAT A30 HEADING "Food Item"
+COLUMN total_ordered FORMAT 9999 HEADING "Quantity Ordered"
+
+CREATE OR REPLACE PROCEDURE PopularItemsByLocation AS
+BEGIN
+    INSERT INTO temp_popular_items
+    SELECT country_id, country_name, location_id, Address, Food_Item, Quantity_Ordered
+    FROM (
+        SELECT country_id, country_name, location_id, Address, Food_Item, Quantity_Ordered,
+               ROW_NUMBER() OVER(PARTITION BY country_id, location_id ORDER BY Quantity_Ordered DESC) AS r_num
+        FROM (
+            SELECT c.country_id, c.country_name, rl.location_id, rl.restaurant_address AS Address,
+                   fi.food_name AS Food_Item, COUNT(oi.food_id) AS Quantity_Ordered
+            FROM Order_Item oi, Orders o, Employees e, Restaurant_Branch rb,
+                 Restaurant_Location rl, Food_Item fi, Countries c
+            WHERE o.order_id = oi.order_id AND e.employee_id = o.cashier_id
+                  AND rb.restaurant_id = e.restaurant_id AND rl.location_id = rb.location_id
+                  AND fi.food_id = oi.food_id AND c.country_id = rl.country_id
+            GROUP BY c.country_id, c.country_name, rl.location_id, rl.restaurant_address, fi.food_name
+        )
+    ) 
+    WHERE r_num <= 10;
+
+END PopularItemsByLocation;
+/
+
+-- Execute the procedure
+EXEC PopularItemsByLocation;
+
+-- Retrieve and display the data
+SELECT country_id, country_name, location_id, address, food_name, total_ordered 
+FROM temp_popular_items 
+ORDER BY country_id, location_id, total_ordered DESC;
+
+-- Cleanup
+DROP TABLE temp_popular_items;
+CLEAR COLUMNS;
+CLEAR BREAKS;
+TTITLE OFF;

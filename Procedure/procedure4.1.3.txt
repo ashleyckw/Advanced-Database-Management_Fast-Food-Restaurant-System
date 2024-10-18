@@ -1,0 +1,110 @@
+-- Enable DBMS_OUTPUT
+SET SERVEROUTPUT ON;
+
+CREATE OR REPLACE FUNCTION IsValidCountry(p_country_id IN CHAR) RETURN BOOLEAN IS
+    v_count NUMBER;
+BEGIN
+    -- Check if the country code exists in the Country table
+    SELECT COUNT(*)
+    INTO v_count
+    FROM Countries
+    WHERE country_id = p_country_id;
+
+    -- If v_count is 1, the country code is valid; otherwise, it's not valid
+    IF v_count = 1 THEN
+        RETURN TRUE;
+    ELSE
+        RETURN FALSE;
+    END IF;
+END IsValidCountry;
+/
+
+CREATE OR REPLACE PROCEDURE Add_New_Restaurant_Branch (
+    p_address IN VARCHAR2,
+    p_postal_code IN VARCHAR2,
+    p_city IN VARCHAR2,
+    p_state IN VARCHAR2,
+    p_country_id IN CHAR,
+    p_contact_number IN VARCHAR2,
+    p_opening_hour IN INTERVAL DAY TO SECOND,
+    p_closing_hour IN INTERVAL DAY TO SECOND
+) AS
+    v_location_id NUMBER;
+    v_restaurant_id NUMBER;
+    v_error_msg VARCHAR2(4000);
+    v_contact_count NUMBER;
+    v_valid_country BOOLEAN := FALSE;
+BEGIN
+    -- Input Validation (Add more validation rules as needed)
+    IF p_address IS NULL OR p_contact_number IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Address and contact number cannot be empty.');
+    END IF;
+
+    -- Check if the contact number format is valid using a regular expression
+    IF NOT REGEXP_LIKE(p_contact_number, '^\+\d{2} \d{3} \d{3} \d{4}$') THEN
+        RAISE_APPLICATION_ERROR(-20006, 'Invalid contact number format.');
+    END IF;
+
+    -- Check if the country code is valid
+    IF IsValidCountry(p_country_id) THEN
+        v_valid_country := TRUE;
+    END IF;
+
+    IF NOT v_valid_country THEN
+        RAISE_APPLICATION_ERROR(-20005, 'Invalid country code.');
+    END IF;
+
+    -- Check if the contact number already exists
+    SELECT COUNT(*)
+    INTO v_contact_count
+    FROM Restaurant_Branch
+    WHERE contact_number = p_contact_number;
+
+    IF v_contact_count > 0 THEN
+        -- Raise an exception if the contact number already exists
+        RAISE_APPLICATION_ERROR(-20003, 'Contact number already exists.');
+    END IF;
+
+    -- Insert into Restaurant_Location Table using sequence
+    INSERT INTO Restaurant_Location (
+        location_id,
+        restaurant_address,
+        restaurant_postal_code,
+        restaurant_city,
+        restaurant_state,
+        country_id
+    ) VALUES (
+        restaurant_location_seq.NEXTVAL,
+        p_address,
+        p_postal_code,
+        p_city,
+        p_state,
+        p_country_id
+    );
+
+    -- Insert into Restaurant_Branch Table using sequence
+    INSERT INTO Restaurant_Branch (
+        restaurant_id,
+        contact_number,
+        opening_hour,
+        closing_hour,
+        location_id
+    ) VALUES (
+        restaurant_branch_seq.NEXTVAL,
+        p_contact_number,
+        p_opening_hour,
+        p_closing_hour,
+        restaurant_location_seq.CURRVAL
+    );
+
+    -- Commit the transaction
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Restaurant branch and location has been added successfully.');
+EXCEPTION
+    WHEN OTHERS THEN
+        ROLLBACK;
+        v_error_msg := 'Error: ' || SQLERRM;
+        DBMS_OUTPUT.PUT_LINE(v_error_msg);
+END Add_New_Restaurant_Branch;
+/

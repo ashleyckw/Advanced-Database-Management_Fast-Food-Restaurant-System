@@ -1,0 +1,72 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 140
+SET PAGESIZE 50
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt for Country Code input
+ACCEPT input_country_code PROMPT 'Enter Country Code (e.g. MY): '
+
+-- Column Formatting
+COLUMN restaurant_id FORMAT 99999999 Heading "Restaurant ID"
+COLUMN stock_id FORMAT 99999999 Heading "Stock ID"
+COLUMN stock_name FORMAT A20 Heading "Stock Name"
+COLUMN stock_quantity FORMAT 999999999 HEADING "Stock Quantity"
+COLUMN quantity_to_order FORMAT 999999999 HEADING "Quantity to Order"
+COLUMN last_stock_update FORMAT A17 HEADING "Last Stock Update"
+COLUMN inventory_status FORMAT A20 HEADING "Inventory Status"
+COLUMN reorder_indicator FORMAT A20 HEADING "Reorder Indicator"
+
+-- Title
+TTITLE LEFT 'Query Generated On: ' _DATE SKIP 3 CENTER 'Inventory Reorder Alert: Stock Items Below Reorder Point in ' &input_country_code SKIP 1 CENTER '======================================================================' SKIP 2
+
+-- Create a view to calculate inventory status and reorder indicator
+CREATE OR REPLACE VIEW Stock_Reorder_Status AS
+SELECT
+    rb.Restaurant_ID AS restaurant_id,
+    s.Stock_ID AS stock_id,
+    s.Stock_Name AS stock_name,
+    s.Stock_Quantity AS stock_quantity,
+    CASE
+        WHEN s.Stock_Quantity <= s.Reorder_Point THEN 'Insufficient Stock'
+        ELSE 'Adequate Stock'
+    END AS reorder_indicator,
+    s.Last_Stock_Update AS last_stock_update,
+    CASE
+        WHEN s.Stock_Quantity <= 0 THEN 'Out of Stock'
+        WHEN s.Stock_Quantity <= 10 THEN 'Low Stock'
+        WHEN s.Stock_Quantity <= 50 THEN 'Medium Stock'
+        ELSE 'High Stock'
+    END AS inventory_status,
+    (s.Reorder_Point - s.Stock_Quantity) AS quantity_to_order
+FROM
+    Stock_Item s
+JOIN
+    Restaurant_Branch rb ON s.restaurant_ID = rb.restaurant_ID
+JOIN
+    Restaurant_Location rl ON rb.Location_ID = rl.Location_ID
+WHERE
+    rl.Country_id = '&input_country_code';
+
+-- Query to retrieve stock items below reorder point for restaurants in the specified country
+SELECT
+    srs.restaurant_id,
+    srs.stock_id,
+    srs.stock_name,
+    srs.stock_quantity,
+    srs.quantity_to_order,
+    srs.last_stock_update,
+    srs.inventory_status,
+    srs.reorder_indicator
+FROM
+    Stock_Reorder_Status srs
+WHERE
+    srs.reorder_indicator = 'Insufficient Stock'
+ORDER BY
+    srs.Restaurant_ID;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

@@ -1,0 +1,9 @@
+-- Update an employee's salary to $4,200 with SAL_GRADE 1 (within range)
+UPDATE Employees
+SET Salary = 4200, Sal_Grade = 1
+WHERE Employee_ID = 40;
+
+-- Update an employee's salary to $5,500 with SAL_GRADE 2 (outside range, will raise an error)
+UPDATE Employees
+SET Salary = 5500, Sal_Grade = 2
+WHERE Employee_ID = 41;

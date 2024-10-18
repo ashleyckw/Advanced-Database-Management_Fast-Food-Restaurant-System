@@ -1,0 +1,63 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 170
+SET PAGESIZE 100
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt user to input
+ACCEPT input_year DATE FORMAT 'YYYY' PROMPT 'Enter the year (YYYY): '
+
+-- Column Formatting
+COLUMN ranking FORMAT 99999 HEADING "Rank"
+COLUMN customer_id FORMAT 999999 HEADING "Customer ID"
+COLUMN customer_name FORMAT A20 TRUNC HEADING "Customer Name"
+COLUMN avg_purchase_value_per_year FORMAT 999999999.99 HEADING "Average Order Value per Year (USD)"
+COLUMN num_of_purchases_per_year FORMAT 999999 HEADING "Number of Orders per Year"
+COLUMN avg_customer_lifespan FORMAT 999.99 HEADING "Average Customer Lifespan (Years)"
+COLUMN customer_lifetime_value FORMAT 999999999.99 HEADING "Customer Lifetime Value (USD)"
+
+-- Title
+TTITLE LEFT 'Report Generated On: ' _DATE RIGHT 'Page No.: ' FORMAT 999 SQL.PNO SKIP 3 CENTER 'Top 10 Highest Customer Lifetime Value (CLTV) Report for the Year of ' &input_year SKIP 1 CENTER '============================================================================' SKIP 2
+BREAK ON REPORT
+
+COMPUTE SUM LABEL 'TOTAL: ' OF avg_purchase_value_per_year ON REPORT
+
+-- Query View
+CREATE OR REPLACE VIEW cltv_report AS
+SELECT 
+    c.customer_id,
+    c.first_name || ' ' || c.last_name AS customer_name,
+    ROUND(AVG(p.payment_amount), 2) AS avg_purchase_value_per_year,
+    COUNT(DISTINCT o.order_id) / COUNT(DISTINCT EXTRACT(YEAR FROM o.order_date)) AS num_of_purchases_per_year,
+    ROUND((MAX(o.order_date) - MIN(o.order_date)) / 365, 2) AS avg_customer_lifespan,
+    ROUND(AVG(p.payment_amount) * (COUNT(DISTINCT o.order_id) / COUNT(DISTINCT EXTRACT(YEAR FROM o.order_date))) * ((MAX(o.order_date) - MIN(o.order_date)) / 365), 2) AS customer_lifetime_value
+FROM 
+    customers c
+JOIN 
+    orders o ON c.customer_id = o.customer_id
+JOIN 
+    payment p ON o.order_id = p.order_id
+WHERE 
+    EXTRACT(YEAR FROM o.order_date) = &input_year
+GROUP BY 
+    c.customer_id, c.first_name, c.last_name
+HAVING 
+    COUNT(DISTINCT o.order_id) > 1
+ORDER BY 
+    customer_lifetime_value DESC;
+
+SELECT *
+FROM (
+    SELECT 
+        RANK() OVER (ORDER BY customer_lifetime_value DESC) AS ranking,
+        customer_id, customer_name, avg_purchase_value_per_year, 
+        num_of_purchases_per_year, avg_customer_lifespan, customer_lifetime_value
+    FROM cltv_report
+)
+WHERE ranking <= 10;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

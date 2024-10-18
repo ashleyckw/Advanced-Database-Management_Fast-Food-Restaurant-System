@@ -1,0 +1,50 @@
+CREATE OR REPLACE PROCEDURE Insert_Stock_Purchase (
+    p_stock_name IN VARCHAR2,
+    p_quantity_ordered IN NUMBER,
+    p_standard_cost IN NUMBER,
+    p_supplier_name IN VARCHAR2,
+    p_supplier_contact IN VARCHAR2,
+    p_reorder_point IN NUMBER,
+    p_restaurant_id IN NUMBER,
+    p_supplier_id OUT NUMBER,
+    p_purchase_order_id OUT NUMBER
+) AS
+    v_stock_id NUMBER;
+    v_supplier_id NUMBER;
+    v_purchase_order_id NUMBER;
+BEGIN
+    -- Insert into Supplier table using sequence
+    INSERT INTO Supplier (supplier_id, supplier_name, supplier_contact)
+    VALUES (supplier_seq.NEXTVAL, p_supplier_name, p_supplier_contact)
+    RETURNING supplier_id INTO v_supplier_id;
+
+    -- Insert into Purchase_Order table using sequence and SYSDATE
+    INSERT INTO Purchase_Order (purchase_order_id, order_date, delivery_date, restaurant_id, supplier_id)
+    VALUES (purchase_order_seq.NEXTVAL, SYSDATE, SYSDATE, p_restaurant_id, v_supplier_id)
+    RETURNING purchase_order_id INTO v_purchase_order_id;
+
+    -- Insert into Stock_Item table using sequence, SYSDATE, and supplied values
+    INSERT INTO Stock_Item (stock_id, stock_name, stock_quantity, reorder_point, last_stock_update, restaurant_id)
+    VALUES (stock_item_seq.NEXTVAL, p_stock_name, 0, p_reorder_point, SYSDATE, p_restaurant_id)
+    RETURNING stock_id INTO v_stock_id;
+
+    -- Insert into Purchase_Item table using sequence and supplied values
+    INSERT INTO Purchase_Item (purchase_item_id, quantity_ordered, standard_cost, purchase_order_id, stock_id)
+    VALUES (purchase_item_seq.NEXTVAL, p_quantity_ordered, p_standard_cost, v_purchase_order_id, v_stock_id);
+
+    -- If successful, set the OUT parameters
+    p_supplier_id := v_supplier_id;
+    p_purchase_order_id := v_purchase_order_id;
+
+    -- Commit the transaction
+    COMMIT;
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Handle exceptions
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+        p_supplier_id := NULL;
+        p_purchase_order_id := NULL;
+END Insert_Stock_Purchase;
+/

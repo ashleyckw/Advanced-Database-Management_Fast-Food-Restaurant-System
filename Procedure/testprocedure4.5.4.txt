@@ -1,0 +1,14 @@
+BEGIN
+    UpdateEmployeeDetails(
+        p_employee_id => 2,  -- Provide the employee ID you want to update
+        p_first_name => 'New First Name',
+        p_last_name => 'New Last Name',
+        p_email => 'new.email@example.com',
+        p_phone => '+86 515 123 4561',
+        p_hire_date => TO_DATE('2023-09-15', 'YYYY-MM-DD'),  -- Provide the new hire date
+        p_manager_id => 1,  -- Provide the new manager ID
+        p_job_title => 'New Job Title',
+        p_restaurant_id => 1  -- Provide the new restaurant ID
+    );
+END;
+/

@@ -1,0 +1,58 @@
+-- Create a Salary_Grades table to store salary grade information, including the minimum and maximum salary for each grade
+CREATE TABLE Salary_Grades (
+    Grade_ID NUMBER PRIMARY KEY,
+    Grade_Name VARCHAR2(50) NOT NULL,
+    Min_Salary NUMBER(6,2) NOT NULL,
+    Max_Salary NUMBER(9,2) NOT NULL
+);
+
+-- Create a Salary_Audit_Log table to manage salary grade logs
+CREATE TABLE Salary_Audit_Log (
+    event_date TIMESTAMP PRIMARY KEY,
+    employee_id NUMBER,
+    validation_result VARCHAR2(100)
+);
+
+-- Populate the Salary_Grades table with grade information
+INSERT INTO Salary_Grades (Grade_ID, Grade_Name, Min_Salary, Max_Salary) VALUES (1, 'Grade A', 3000.00, 5000.00);
+INSERT INTO Salary_Grades (Grade_ID, Grade_Name, Min_Salary, Max_Salary) VALUES (2, 'Grade B', 2500.00, 4000.00);
+INSERT INTO Salary_Grades (Grade_ID, Grade_Name, Min_Salary, Max_Salary) VALUES (3, 'Grade C', 1500.00, 3000.00);
+
+-- Alter the EMPLOYEES table to add SALARY and SAL_GRADE columns
+ALTER TABLE employees
+ADD (Sal_Grade NUMBER DEFAULT 1,
+     Salary NUMBER(9,2) DEFAULT 0.00);
+
+-- Add a constraint to enforce the foreign key relationship
+ALTER TABLE employees
+ADD CONSTRAINT Sal_Grade_FK FOREIGN KEY (Sal_Grade) REFERENCES Salary_Grades(Grade_ID);
+
+-- Create a trigger named CheckSalaryGrade to ensure that an employee's salary is within the range of their assigned salary grade
+CREATE OR REPLACE TRIGGER CheckSalaryGrade
+BEFORE INSERT OR UPDATE ON Employees
+FOR EACH ROW
+DECLARE
+    v_min_salary Salary_Grades.Min_Salary%TYPE;
+    v_max_salary Salary_Grades.Max_Salary%TYPE;
+BEGIN
+    -- Retrieve the minimum and maximum salary for the assigned grade
+    SELECT Min_Salary, Max_Salary
+    INTO v_min_salary, v_max_salary
+    FROM Salary_Grades
+    WHERE Grade_ID = :NEW.Sal_Grade;
+
+    -- Check if the new salary is within the salary grade range
+    IF :NEW.Salary < v_min_salary OR :NEW.Salary > v_max_salary THEN
+        -- Raise an error with a descriptive message
+        RAISE_APPLICATION_ERROR(-20001, 'Salary is outside the salary grade range. Salary must be between ' || v_min_salary || ' and ' || v_max_salary || '.');
+    ELSE
+        -- Print the current result that will be added to the audit log
+	DBMS_OUTPUT.PUT_LINE('Current Log: ');
+        DBMS_OUTPUT.PUT_LINE('Event Date: ' || SYSTIMESTAMP || ', Employee ID: ' || :NEW.Employee_ID || ', Validation Result: Salary validation successful');
+
+	-- Insert an audit log record when the validation is successful
+        INSERT INTO Salary_Audit_Log (event_date, employee_id, validation_result)
+        VALUES (SYSTIMESTAMP, :NEW.Employee_ID, 'Salary validation successful');
+    END IF;
+END;
+/

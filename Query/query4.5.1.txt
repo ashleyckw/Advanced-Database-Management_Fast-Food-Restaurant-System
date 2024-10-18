@@ -1,0 +1,74 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 160
+SET PAGESIZE 40
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Column Formatting
+COLUMN country_id FORMAT A10 HEADING "Country ID"
+COLUMN customer_id FORMAT 999999 HEADING "Customer ID"
+COLUMN customer_name FORMAT A20 HEADING "Customer Name"
+COLUMN customer_email FORMAT A30 HEADING "Customer Email"
+COLUMN customer_phone FORMAT A20 HEADING "Phone Number"
+COLUMN order_frequency FORMAT 9999999 HEADING "Order Frequency (per month)"
+COLUMN lifetime_value FORMAT 999999.99 HEADING "Lifetime Value (USD)"
+
+-- Title
+TTITLE LEFT 'Query Generated On: ' _DATE SKIP 3 CENTER 'Customer Retention Analysis: Customers Ordering in Last 3 Months with no Orders in Previous Year' SKIP 1 CENTER '================================================================================================' SKIP 2
+
+-- Query view for customer retention analysis
+CREATE OR REPLACE VIEW Customer_Retention AS
+SELECT
+    a.country_id AS country_id, -- Added country_id as the first column
+    c.customer_id AS customer_id,
+    c.first_name || ' ' || c.last_name AS customer_name,
+    ct.email AS customer_email,
+    ct.phone AS customer_phone,
+    COUNT(o.order_id) AS order_frequency, -- Assuming orders are counted monthly
+    ROUND(SUM(p.payment_amount), 2) AS lifetime_value
+FROM
+    Customers c
+JOIN Contacts ct
+    ON c.customer_id = ct.customer_id
+JOIN Orders o
+    ON c.customer_id = o.customer_id
+JOIN Payment p
+    ON o.order_id = p.order_id
+JOIN Address a -- Added join with Address table
+    ON c.customer_id = a.customer_id
+WHERE
+    c.customer_id IN (
+        -- Subquery to find customers who ordered in the last three months
+        SELECT DISTINCT
+            o.customer_id
+        FROM
+            Orders o
+        WHERE
+            o.order_date >= TRUNC(SYSDATE - 90) -- Orders placed in the last 3 months
+    )
+    AND c.customer_id NOT IN (
+        -- Subquery to find customers who ordered in the previous year
+        SELECT DISTINCT
+            o.customer_id
+        FROM
+            Orders o
+        WHERE
+            o.order_date >= TRUNC(SYSDATE - 365) -- Orders placed in the previous year
+            AND o.order_date < TRUNC(SYSDATE - 90) -- Orders not placed in the last 3 months
+    )
+GROUP BY
+    a.country_id,
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    ct.email,
+    ct.phone;
+
+-- Query to retrieve and display customer retention data
+SELECT * FROM Customer_Retention;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

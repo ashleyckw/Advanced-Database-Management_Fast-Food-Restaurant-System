@@ -1,0 +1,70 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 190
+SET PAGESIZE 100
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt user to input year and filter criteria
+ACCEPT input_year DATE FORMAT 'YYYY' PROMPT 'Enter the year (YYYY): '
+
+-- Column Formatting
+COLUMN ranking FORMAT 999999 HEADING "Rank"
+COLUMN employee_id FORMAT 9999 HEADING "Employee ID"
+COLUMN employee_name FORMAT A20 TRUNC HEADING "Employee Name"
+COLUMN hire_date FORMAT DATE HEADING "Hire Date"
+COLUMN order_quantity FORMAT 999999 HEADING "Order Quantity"
+COLUMN total_payment_amount FORMAT 999999999.99 HEADING "Total Payment Amount (USD)"
+COLUMN average_order_value FORMAT 999999999.99 HEADING "Average Order Value (USD)"
+COLUMN new_customers_acquired FORMAT 999999 HEADING "New Customers Acquired"
+COLUMN conversion_rate FORMAT 999.99 HEADING "Conversion Rate (%)"
+
+---- Title
+TTITLE LEFT 'Query Generated On: ' _DATE SKIP 3 CENTER 'Overall Cashier Performance Analysis' SKIP 1 CENTER '===============================================' SKIP 2
+BREAK ON REPORT
+
+COMPUTE SUM LABEL 'TOTAL' OF order_quantity ON REPORT
+COMPUTE SUM OF total_payment_amount ON REPORT
+
+-- Query
+SELECT
+    RANK() OVER (ORDER BY YearlyOrder.TotalPaymentAmount DESC) AS ranking,
+    e.employee_id AS Employee_ID,
+    e.first_name || ' ' || e.last_name AS Employee_Name,
+    e.hire_date AS Hire_Date,
+    YearlyOrder.OrderQuantity AS Order_Quantity,
+    YearlyOrder.TotalPaymentAmount AS Total_Payment_Amount,
+    ROUND(YearlyOrder.TotalPaymentAmount / YearlyOrder.OrderQuantity, 2) AS Average_Order_Value,
+    YearlyOrder.NewCustomersAcquired AS New_Customers_Acquired,
+    ROUND(YearlyOrder.NewCustomersAcquired / YearlyOrder.OrderQuantity * 100, 2) AS Conversion_Rate
+FROM
+    Employees e
+LEFT JOIN
+    (
+        SELECT
+            e.employee_id AS EmployeeID,
+            SUM(oi.order_quantity) AS OrderQuantity,
+            SUM(p.payment_amount) AS TotalPaymentAmount,
+            COUNT(DISTINCT o.customer_id) AS NewCustomersAcquired
+        FROM
+            Employees e
+        LEFT JOIN
+            Orders o ON e.employee_id = o.cashier_id
+        LEFT JOIN
+            Payment p ON o.order_id = p.order_id
+        LEFT JOIN
+            Order_Item oi ON o.order_id = oi.order_id
+        WHERE
+            EXTRACT(YEAR FROM o.order_date) = &input_year
+        GROUP BY
+            e.employee_id
+    ) YearlyOrder ON e.employee_id = YearlyOrder.EmployeeID
+WHERE
+    e.job_title = 'Cashier' -- Filter for cashiers only
+ORDER BY
+    ranking;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

@@ -1,0 +1,64 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 180
+SET PAGESIZE 40
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Column Formatting
+COLUMN delivery_id FORMAT 9999999 HEADING "Delivery ID"
+COLUMN order_id FORMAT 9999999 HEADING "Order ID"
+COLUMN customer_id FORMAT 9999999 HEADING "Customer ID"
+COLUMN customer_name FORMAT A20 HEADING "Customer Name"
+COLUMN customer_phone FORMAT A20 HEADING "Customer Phone"
+COLUMN country_id FORMAT A25 HEADING "Customer Demographics"
+COLUMN delivery_date FORMAT A15 HEADING "Delivery Date"
+COLUMN delivery_status FORMAT A20 HEADING "Delivery Status"
+COLUMN delivery_distance FORMAT 9999999.99 HEADING "Delivery Distance (km)"
+
+-- Title
+TTITLE LEFT 'Query Generated On: ' _DATE SKIP 3 CENTER 'Delivery Status Monitoring: Real-time Ongoing Delivery Information' SKIP 1 CENTER '========================================================================' SKIP 2
+BREAK ON delivery_status SKIP 1
+
+COMPUTE COUNT LABEL 'TOTAL' OF delivery_id ON delivery_status
+
+-- Query to retrieve delivery information, including order ID, and grouped by delivery status, sorted by delivery status
+SELECT
+    d.delivery_status,
+    d.delivery_id,
+    d.order_id,
+    c.customer_id,
+    c.first_name || ' ' || c.last_name AS customer_name,
+    ct.phone AS customer_phone,
+    a.country_id,
+    TO_CHAR(d.delivery_date, 'DD/MM/YYYY') AS delivery_date,
+    d.delivery_distance
+FROM Delivery d
+JOIN Orders o 
+    ON d.order_id = o.order_id
+JOIN Feedback f 
+    ON f.order_id = d.order_id
+JOIN Customers c 
+    ON c.customer_id = f.customer_id
+JOIN Contacts ct 
+    ON c.customer_id = ct.customer_id
+JOIN Address a
+    ON c.customer_id = a.customer_id
+GROUP BY
+    d.delivery_id,
+    d.order_id,
+    c.customer_id,
+    c.first_name,
+    c.last_name,
+    ct.phone,
+    a.country_id,
+    d.delivery_date,
+    d.delivery_status,
+    d.delivery_distance
+ORDER BY
+    d.delivery_status;
+
+-- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

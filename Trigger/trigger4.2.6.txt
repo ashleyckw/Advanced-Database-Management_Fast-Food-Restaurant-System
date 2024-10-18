@@ -1,0 +1,27 @@
+-- Create or replace the trigger
+CREATE OR REPLACE TRIGGER Prevent_Delete_Customer
+BEFORE DELETE ON Customers
+FOR EACH ROW
+DECLARE
+    v_order_count NUMBER;
+BEGIN
+    -- Check if orders exist for the customer
+    SELECT COUNT(*) INTO v_order_count
+    FROM Orders
+    WHERE customer_id = :OLD.customer_id;
+
+    -- If orders exist, prevent the deletion
+    IF v_order_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Cannot delete this customer. They have placed existing orders.');
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        -- Handle the case where there are no orders found for the customer (ignore, as it means no orders exist).
+        NULL;
+
+    WHEN OTHERS THEN
+        -- Handle other exceptions if needed.
+        RAISE;
+END;
+/

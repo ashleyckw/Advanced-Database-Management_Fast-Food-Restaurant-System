@@ -1,0 +1,50 @@
+SET SERVEROUTPUT ON;
+SET LINESIZE 120;
+SET PAGESIZE 40;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt user to input start and end dates
+ACCEPT p_start_date PROMPT 'Enter the start date (DD/MM/YYYY): '
+ACCEPT p_end_date PROMPT 'Enter the end date (DD/MM/YYYY): '
+
+-- Generate report title
+TTITLE LEFT 'Report Generated On: ' _DATE RIGHT 'Page No.: ' FORMAT 999 SQL.PNO SKIP 3 CENTER 'Customer Feedback Analysis Report' SKIP 1 CENTER '================================================================================' SKIP 2;
+
+-- Break on each food item
+BREAK ON food_name;
+
+-- Formatting the output columns
+COLUMN food_name FORMAT A30 HEADING "Food Item";
+COLUMN feedback_date FORMAT A15 HEADING "Feedback Date";
+COLUMN feedback_comment FORMAT A35 HEADING "Comment";
+COLUMN feedback_rating FORMAT A8 HEADING "Rating";
+
+-- Procedure to fetch and display feedback data
+CREATE OR REPLACE PROCEDURE GenerateFeedbackReport(p_start_date IN DATE, p_end_date IN DATE, rc_feedback OUT SYS_REFCURSOR) IS
+BEGIN
+    OPEN rc_feedback FOR
+        SELECT fi.food_name,
+               f.feedback_date, 
+               f.feedback_comment, 
+               RPAD('*', f.feedback_rating, '*')  AS feedback_rating
+        FROM Feedback f 
+        JOIN Orders o ON f.order_id = o.order_id 
+        JOIN Order_Item oi ON o.order_id = oi.order_id 
+        JOIN Food_Item fi ON oi.food_id = fi.food_id 
+        WHERE f.feedback_date BETWEEN p_start_date AND p_end_date
+        ORDER BY fi.food_name, f.feedback_date, f.feedback_rating;
+END GenerateFeedbackReport;
+/
+
+VAR rc REFCURSOR;
+
+-- Execute the procedure using provided dates
+EXEC GenerateFeedbackReport(TO_DATE('&p_start_date', 'DD/MM/YYYY'), TO_DATE('&p_end_date', 'DD/MM/YYYY'), :rc);
+
+-- Retrieve and display the feedback data
+PRINT rc;
+
+-- Cleanup
+CLEAR COLUMNS;
+CLEAR BREAKS;
+TTITLE OFF;

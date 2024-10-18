@@ -1,0 +1,62 @@
+CREATE OR REPLACE PROCEDURE Add_Set_Meal (
+    p_menu_name VARCHAR2,
+    p_category_code VARCHAR2,
+    p_category_name VARCHAR2,
+    p_category_description VARCHAR2,
+    p_food_name VARCHAR2,
+    p_food_description VARCHAR2,
+    p_unit_price NUMBER,
+    p_food_price NUMBER,
+    p_meal_name VARCHAR2,
+    p_meal_price VARCHAR2,
+    p_meal_description VARCHAR2
+) AS
+    v_menu_id NUMBER;
+    v_category_id NUMBER;
+    v_food_id NUMBER;
+BEGIN
+    -- Initialize result message
+    DBMS_OUTPUT.PUT_LINE('Adding Set Meal...');
+
+    -- Insert the new menu
+    INSERT INTO Food_Menu (menu_id, menu_name, restaurant_id)
+    VALUES (food_menu_seq.NEXTVAL, p_menu_name, 1)
+    RETURNING menu_id INTO v_menu_id;
+
+    DBMS_OUTPUT.PUT_LINE('Menu added successfully.');
+
+    -- Insert the new category
+    INSERT INTO Food_Category (category_id, category_code, category_name, category_description, menu_id)
+    VALUES (food_category_seq.NEXTVAL, p_category_code, p_category_name, p_category_description, v_menu_id)
+    RETURNING category_id INTO v_category_id;
+
+    DBMS_OUTPUT.PUT_LINE('Category added successfully.');
+
+    -- Insert the new food item
+    INSERT INTO Food_Item (food_id, food_name, food_description, unit_price, food_price, category_id)
+    VALUES (food_item_seq.NEXTVAL, p_food_name, p_food_description, p_unit_price, p_food_price, v_category_id)
+    RETURNING food_id INTO v_food_id;
+
+    DBMS_OUTPUT.PUT_LINE('Food item added successfully.');
+
+    -- Insert the new set meal
+    INSERT INTO Set_Meal (meal_id, meal_name, meal_price, meal_description, menu_id)
+    VALUES (set_meal_seq.NEXTVAL, p_meal_name, p_meal_price, p_meal_description, v_menu_id);
+
+    DBMS_OUTPUT.PUT_LINE('Set meal added successfully.');
+
+    COMMIT;
+
+EXCEPTION
+    WHEN DUP_VAL_ON_INDEX THEN
+        -- Handle duplicate value error (e.g., duplicate menu name or category code)
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error: Duplicate value found.');
+
+    WHEN OTHERS THEN
+        ROLLBACK;
+
+        -- Set the result message to indicate failure and provide an error description
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END Add_Set_Meal;
+/

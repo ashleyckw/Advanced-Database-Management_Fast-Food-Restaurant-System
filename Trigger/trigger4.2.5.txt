@@ -1,0 +1,37 @@
+--Create Customer Audit Log Table
+CREATE TABLE Customer_Audit_Log (
+    audit_id NUMBER PRIMARY KEY,
+    customer_id NUMBER,
+    action_type VARCHAR2(50),
+    action_date TIMESTAMP,
+    action_description VARCHAR2(255),
+    CONSTRAINT FK_customer_audit FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+);
+
+-- Create Sequence to insert into Customer Audit Log Table
+CREATE SEQUENCE customer_audit_seq
+    START WITH 1 
+    INCREMENT BY 1
+    NOCACHE;
+
+-- Create the trigger
+CREATE OR REPLACE TRIGGER Track_Customer_Audit
+AFTER INSERT OR UPDATE OR DELETE ON Customers
+DECLARE
+   v_action_type VARCHAR2(50);
+BEGIN
+   -- Determine the action type (insert, update, delete)
+   IF INSERTING THEN
+      v_action_type := 'INSERT';
+   ELSIF UPDATING THEN
+      v_action_type := 'UPDATE';
+   ELSIF DELETING THEN
+      v_action_type := 'DELETE';
+   END IF;
+
+   -- Insert a record into Customer_Audit_Log
+   INSERT INTO Customer_Audit_Log (audit_id, customer_id, action_type, action_date, action_description)
+   VALUES (customer_audit_seq.NEXTVAL, NULL, v_action_type, SYSTIMESTAMP, NULL);
+END;
+/
+

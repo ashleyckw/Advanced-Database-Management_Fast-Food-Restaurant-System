@@ -1,0 +1,30 @@
+CREATE OR REPLACE TRIGGER trg_validate_dates_before_iu
+BEFORE INSERT OR UPDATE ON Purchase_Order
+FOR EACH ROW
+DECLARE
+    v_order_date DATE;
+    v_delivery_date DATE;
+BEGIN
+
+    -- For insert, directly use the new values
+    IF INSERTING THEN
+        v_order_date := :NEW.order_date;
+        v_delivery_date := :NEW.delivery_date;
+    -- For update, ensure you're considering potentially unchanged columns
+    ELSIF UPDATING THEN
+        v_order_date := NVL(:NEW.order_date, :OLD.order_date);
+        v_delivery_date := NVL(:NEW.delivery_date, :OLD.delivery_date);
+    END IF;
+
+    -- Only enforce if both dates are provided
+    IF v_order_date IS NOT NULL AND v_delivery_date IS NOT NULL THEN
+        IF v_delivery_date <= v_order_date THEN
+            RAISE_APPLICATION_ERROR(-20001, 'Delivery date must be later than the order date.');
+        END IF;
+    END IF;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE;  -- Reraise the current exception
+END;
+/

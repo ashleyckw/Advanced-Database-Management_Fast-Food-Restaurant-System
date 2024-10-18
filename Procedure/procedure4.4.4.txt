@@ -1,0 +1,97 @@
+CREATE OR REPLACE PROCEDURE Process_Customer_Order (
+    p_customer_id NUMBER,
+    p_food_items SYS.ODCINUMBERLIST,
+    p_coupon_code VARCHAR2 DEFAULT NULL,
+    p_payment_method VARCHAR2
+) IS
+    v_order_id NUMBER;
+    v_order_amount NUMBER;
+    v_discount NUMBER(8,2);
+    v_discount_amount NUMBER;
+    v_coupon_type VARCHAR2(250);
+    v_expiry_date DATE;
+BEGIN
+    -- Check if the customer exists
+    DECLARE
+        v_customer_exists NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO v_customer_exists
+        FROM Customers
+        WHERE customer_id = p_customer_id;
+
+        IF v_customer_exists = 0 THEN
+            -- Create a new customer record if the customer doesn't exist
+            INSERT INTO Customers (customer_id, first_name, last_name)
+            VALUES (p_customer_id, 'New', 'Customer');
+        END IF;
+    END;
+
+    -- Create a new order record
+    INSERT INTO Orders (order_id, order_status, customer_id)
+    VALUES (orders_seq.NEXTVAL, 'Ordered', p_customer_id)
+    RETURNING order_id INTO v_order_id;
+
+    -- Add food items to the order
+    FOR i IN 1..p_food_items.COUNT LOOP
+        INSERT INTO Order_Item (order_id, order_item_id, order_quantity, food_id)
+        VALUES (v_order_id, order_item_seq.NEXTVAL, 1, p_food_items(i));
+    END LOOP;
+
+    -- Apply the coupon if provided
+    IF p_coupon_code IS NOT NULL THEN
+        -- Retrieve the coupon details based on the coupon code
+        BEGIN
+            SELECT coupon_discount, coupon_type, EXPIRY_DATE INTO v_discount, v_coupon_type, v_expiry_date
+            FROM Coupons
+            WHERE coupon_code = p_coupon_code and ROWNUM = 1;
+
+            -- Check if the coupon is expired
+            IF SYSDATE > v_expiry_date THEN
+                RAISE_APPLICATION_ERROR(-20003, 'Coupon has expired');
+            END IF;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                -- Handle the case where the coupon code is not valid
+                RAISE_APPLICATION_ERROR(-20001, 'Invalid coupon code');
+            WHEN OTHERS THEN
+                -- Handle other exceptions
+                RAISE_APPLICATION_ERROR(-20002, 'Error applying coupon: ' || SQLERRM);
+        END;
+
+        IF v_discount IS NOT NULL THEN
+            DBMS_OUTPUT.PUT_LINE('Coupon has been applied successfully. Coupon code: ' || p_coupon_code);
+            -- Calculate the total order amount
+            SELECT SUM(fi.food_price) INTO v_order_amount
+            FROM Order_Item oi
+            JOIN Food_Item fi ON oi.food_id = fi.food_id
+            WHERE oi.order_id = v_order_id;
+
+            -- Calculate the discount amount based on the coupon type
+            IF v_coupon_type = 'Percentage Off' THEN
+                v_discount_amount := (v_order_amount * (v_discount / 100));
+            ELSIF v_coupon_type = 'Fixed Amount' THEN
+                v_discount_amount := v_discount;
+            END IF;
+
+            -- Apply the coupon discount to the order
+            v_order_amount := v_order_amount - v_discount_amount;
+        END IF;
+    END IF;
+
+    -- Update the order amount in the payment table
+    INSERT INTO Payment (payment_id, payment_method, payment_amount, order_id)
+    VALUES (payment_seq.NEXTVAL, p_payment_method, v_order_amount, v_order_id);
+
+    COMMIT;
+
+    DBMS_OUTPUT.PUT_LINE('Order processed successfully. Order ID: ' || v_order_id);
+EXCEPTION
+    WHEN DUP_VAL_ON_INDEX THEN
+        ROLLBACK;
+        RAISE_APPLICATION_ERROR(-20003, 'Duplicate order detected. Please try again.');
+    WHEN OTHERS THEN
+        ROLLBACK;
+        DBMS_OUTPUT.PUT_LINE('Error processing the order: ' || SQLERRM);
+        RAISE;
+END Process_Customer_Order;
+/

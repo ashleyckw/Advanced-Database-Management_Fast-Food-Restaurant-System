@@ -1,0 +1,40 @@
+-- Declare variables to hold test data
+DECLARE
+    v_customer_id NUMBER := 1; -- Replace with a valid customer ID
+    v_food_items SYS.ODCINUMBERLIST := SYS.ODCINUMBERLIST(1, 2, 3); -- Replace with valid food item IDs
+    v_valid_coupon_code VARCHAR2(50) := 'WXYZ5678'; -- Replace with a valid coupon code
+    v_invalid_coupon_code VARCHAR2(50) := 'INVALID123'; -- Replace with an invalid coupon code
+    v_expired_coupon_code VARCHAR2(50) := 'EXPIRED999'; -- Replace with an expired coupon code
+    v_payment_method VARCHAR2(50) := 'Credit Card'; -- Replace with a valid payment method
+BEGIN
+    -- Call the procedure with valid coupon
+    DBMS_OUTPUT.PUT_LINE('Test Case 1: Valid Coupon');
+    Process_Customer_Order(
+        p_customer_id => v_customer_id,
+        p_food_items => v_food_items,
+        p_coupon_code => v_valid_coupon_code,
+        p_payment_method => v_payment_method
+    );
+
+    -- Call the procedure with invalid coupon
+    DBMS_OUTPUT.PUT_LINE('Test Case 2: Invalid Coupon');
+    Process_Customer_Order(
+        p_customer_id => v_customer_id,
+        p_food_items => v_food_items,
+        p_coupon_code => v_invalid_coupon_code,
+        p_payment_method => v_payment_method
+    );
+
+    -- Call the procedure with expired coupon
+    DBMS_OUTPUT.PUT_LINE('Test Case 3: Expired Coupon');
+    Process_Customer_Order(
+        p_customer_id => v_customer_id,
+        p_food_items => v_food_items,
+        p_coupon_code => v_expired_coupon_code,
+        p_payment_method => v_payment_method
+    );
+
+    -- Commit the transaction (if needed)
+    COMMIT;
+END;
+/

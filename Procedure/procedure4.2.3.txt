@@ -1,0 +1,39 @@
+CREATE OR REPLACE PROCEDURE ADD_NEW_MENU_ITEM (
+    v_food_name VARCHAR2,
+    v_food_description VARCHAR2,
+    v_unit_price NUMBER,
+    v_food_price NUMBER,
+    v_category_id NUMBER
+) AS
+BEGIN
+    -- Check if a menu item with the same name already exists
+    DECLARE
+        item_count NUMBER;
+    BEGIN
+        SELECT COUNT(*) INTO item_count
+        FROM Food_Item
+        WHERE food_name = v_food_name;
+
+        IF item_count > 0 THEN
+            -- Raise a custom error if a duplicate is found
+            RAISE_APPLICATION_ERROR(-20001, 'A menu item with the same name already exists.');
+        END IF;
+    END;
+
+    -- Insert the new menu item using the sequence for food_id
+    INSERT INTO Food_Item (food_id, food_name, food_description, unit_price, food_price, category_id)
+    VALUES (Food_Item_Seq.NEXTVAL, v_food_name, v_food_description, v_unit_price, v_food_price, v_category_id);
+
+    -- Commit the transaction
+    COMMIT;
+    
+    -- Print success message
+    DBMS_OUTPUT.PUT_LINE('Food Item ' || Food_Item_Seq.CURRVAL || ' has been successfully added to the database');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Handle other exceptions and print error messages
+        DBMS_OUTPUT.PUT_LINE('An error occurred: ' || SQLERRM);
+        ROLLBACK;
+END ADD_NEW_MENU_ITEM;
+/

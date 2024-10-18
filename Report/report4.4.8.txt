@@ -1,0 +1,145 @@
+SET SERVEROUTPUT ON;
+SET LINESIZE 100;
+SET PAGESIZE 40;
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY';
+
+-- Prompt user for input
+ACCEPT input_year NUMBER PROMPT 'Enter the year (YYYY): '
+ACCEPT report_type CHAR FORMAT 'A10' PROMPT 'Enter report type (MONTHLY, QUARTERLY, ANNUALLY): '
+
+-- Create a Global Temporary Table for the report
+CREATE GLOBAL TEMPORARY TABLE temp_sales_report (
+    category_name VARCHAR2(255),
+    report_period VARCHAR2(15),
+    sort_month NUMBER,
+    total_sales NUMBER(12,2),
+    avg_sales NUMBER(12,2),
+    profit_loss_rate VARCHAR2(20)
+) ON COMMIT DELETE ROWS;
+
+-- Generate report title with input year
+TTITLE LEFT 'Report Generated On: ' _DATE RIGHT 'Page No.: ' FORMAT 999 SQL.PNO SKIP 3 CENTER 'Profit Loss Comparison Report: ' &input_year ' vs. Historical Average (' &report_type ')' SKIP 1 CENTER '================================================================================' SKIP 2
+BREAK ON category_name SKIP 1;
+
+-- Formatting the output columns
+COLUMN category_name FORMAT A20 HEADING "Food Category"
+COLUMN report_period FORMAT A20 HEADING "Period"
+COLUMN total_sales FORMAT 9999.99 HEADING "Total Sales (USD)"
+COLUMN avg_sales FORMAT 9999.99 HEADING "Average Sales (USD)"
+COLUMN profit_loss_rate FORMAT A20 HEADING "Profit Loss Rate (%)"
+
+-- Procedure using explicit cursor
+CREATE OR REPLACE PROCEDURE GenerateSalesReport(input_year IN NUMBER, report_type IN VARCHAR2) AS
+    avg_prev_years_sales NUMBER;
+
+    CURSOR sales_cursor IS
+    SELECT 
+        fc.category_name,
+        CASE 
+            WHEN UPPER(report_type) = 'MONTHLY' THEN TO_CHAR(o.order_date, 'MONTH')
+            WHEN UPPER(report_type) = 'QUARTERLY' THEN 'Q' || TO_CHAR(o.order_date, 'Q')
+            ELSE 'ANNUAL' 
+        END AS report_period,
+        CASE 
+            WHEN UPPER(report_type) = 'MONTHLY' THEN TO_NUMBER(TO_CHAR(o.order_date, 'MM'))
+            WHEN UPPER(report_type) = 'QUARTERLY' THEN TO_NUMBER(TO_CHAR(o.order_date, 'Q')) * 3 - 2 -- Multiply by 3 and subtract 2 to get starting month of each quarter (e.g., Q1 starts in January, which is month 1)
+            ELSE NULL
+        END AS sort_month,
+
+        SUM(oi.order_quantity * fi.food_price) as total_sales,
+        AVG(oi.order_quantity * fi.food_price) as avg_sales
+    FROM 
+        Orders o
+        JOIN Order_Item oi ON o.order_id = oi.order_id
+        JOIN Food_Item fi ON oi.food_id = fi.food_id
+        JOIN Food_Category fc ON fi.category_id = fc.category_id
+    WHERE
+        EXTRACT(YEAR FROM o.order_date) = input_year
+    GROUP BY 
+    fc.category_name,
+    CASE 
+        WHEN UPPER(report_type) = 'MONTHLY' THEN TO_CHAR(o.order_date, 'MONTH')
+        WHEN UPPER(report_type) = 'QUARTERLY' THEN 'Q' || TO_CHAR(o.order_date, 'Q')
+        ELSE 'ANNUAL' 
+    END,
+    CASE 
+        WHEN UPPER(report_type) = 'MONTHLY' THEN TO_NUMBER(TO_CHAR(o.order_date, 'MM'))
+        WHEN UPPER(report_type) = 'QUARTERLY' THEN TO_NUMBER(TO_CHAR(o.order_date, 'Q')) * 3 - 2 -- Multiply by 3 and subtract 2 to get starting month of each quarter (e.g., Q1 starts in January, which is month 1)
+        ELSE NULL
+    END;
+
+
+    sales_rec sales_cursor%ROWTYPE;
+
+    FUNCTION avg_sales_prev_years(cat_name VARCHAR2) RETURN NUMBER IS
+        avg_sales_prev NUMBER;
+    BEGIN
+        SELECT NVL(AVG(oi.order_quantity * fi.food_price), 0) INTO avg_sales_prev
+        FROM 
+            Orders o
+            JOIN Order_Item oi ON o.order_id = oi.order_id
+            JOIN Food_Item fi ON oi.food_id = fi.food_id
+            JOIN Food_Category fc ON fi.category_id = fc.category_id
+        WHERE
+            EXTRACT(YEAR FROM o.order_date) < input_year
+            AND fc.category_name = cat_name;    
+
+        RETURN avg_sales_prev;
+    EXCEPTION
+        WHEN OTHERS THEN
+            RETURN 0; -- Consider logging the error
+    END avg_sales_prev_years;
+
+BEGIN
+    OPEN sales_cursor;
+    FETCH sales_cursor INTO sales_rec;
+    
+    WHILE sales_cursor%FOUND LOOP
+        avg_prev_years_sales := avg_sales_prev_years(sales_rec.category_name);
+        
+        DECLARE
+            profit_loss_rate NUMBER(10, 2) := 0; -- Define with precision and scale
+            v_profit_loss_rate VARCHAR2(50) := '';
+        BEGIN
+            IF avg_prev_years_sales <> 0 THEN
+                profit_loss_rate := ROUND(((sales_rec.total_sales - avg_prev_years_sales) / avg_prev_years_sales) * 100, 2); -- Round to 2 decimal places
+                v_profit_loss_rate := TO_CHAR(profit_loss_rate);
+                IF TO_NUMBER(v_profit_loss_rate) < 0 THEN
+                    v_profit_loss_rate := '    ' || CHR(27) || '[31m' || v_profit_loss_rate || CHR(27) || '[0m'; -- ANSI for red
+                ELSE
+                    v_profit_loss_rate := '    ' || CHR(27) || '[32m' || v_profit_loss_rate || CHR(27) || '[0m'; -- ANSI for green
+                END IF;
+            END IF;
+
+            INSERT INTO temp_sales_report VALUES (
+                sales_rec.category_name,
+                sales_rec.report_period,
+                sales_rec.sort_month,
+                sales_rec.total_sales,
+                sales_rec.avg_sales,
+                v_profit_loss_rate
+            );
+        END;
+
+        FETCH sales_cursor INTO sales_rec;
+    END LOOP;
+
+    CLOSE sales_cursor;
+    
+END GenerateSalesReport;
+/
+
+COMPUTE SUM LABEL 'TOTAL:' OF total_sales on category_name
+COMPUTE SUM OF avg_sales on category_name
+
+-- Execute the procedure
+EXEC GenerateSalesReport(&input_year, '&report_type');
+
+-- Retrieve and display the data
+SELECT category_name, report_period, total_sales, avg_sales, profit_loss_rate FROM temp_sales_report ORDER BY category_name, NVL(sort_month, 0);
+
+-- Cleanup
+DROP TABLE temp_sales_report;
+CLEAR COLUMNS;
+CLEAR BREAKS;
+TTITLE OFF;

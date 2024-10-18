@@ -1,0 +1,59 @@
+CREATE OR REPLACE PROCEDURE prc_inventory_status_reports IS
+    -- Declare variables
+    v_low_stock_threshold NUMBER := 30;
+    v_high_stock_threshold NUMBER := 100;
+
+    -- Cursor to fetch stock items with quantities and details
+    CURSOR c_stock_items IS
+        SELECT
+            si.stock_name,
+            si.stock_quantity,
+            si.reorder_point,
+            si.last_stock_update,
+            CASE
+                WHEN si.stock_quantity < v_low_stock_threshold THEN 'Low'
+                WHEN si.stock_quantity > v_high_stock_threshold THEN 'High'
+                ELSE 'Moderate'
+            END AS stock_status
+        FROM
+            stock_item si;
+
+BEGIN
+    -- Set title for the summary report
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 102, '-'));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Inventory Status Summary Report', 60, ' ') || LPAD(' | ', 45));
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD(' ', 102) || ' | ');
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Report Generated:', 79, ' ') ||
+        TO_CHAR(SYSDATE, 'DD-MON-YYYY HH24:MI:SS') || '    |');
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('-', 102, '-') || ' | ');
+
+    -- Header for the detailed report
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD('Stock Item', 30) || ' | ' ||
+        RPAD('Quantity', 10) || ' | ' ||
+        RPAD('Reorder Point', 15) || ' | ' ||
+        RPAD('Last Stock Update', 20) || ' | ' ||
+        RPAD('Stock Status', 15) || ' | ');
+
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD('-', 102, '-') || ' | ');
+
+    -- Loop through the cursor and display detailed inventory status
+    FOR v_stock_item IN c_stock_items LOOP
+        DBMS_OUTPUT.PUT_LINE('| ' || RPAD(v_stock_item.stock_name, 30) || ' | ' ||
+            LPAD(v_stock_item.stock_quantity, 10) || ' | ' ||
+            LPAD(v_stock_item.reorder_point, 15) || ' | ' ||
+            LPAD(TO_CHAR(v_stock_item.last_stock_update, 'DD-MON-YYYY'),20) || ' | ' ||
+            RPAD(v_stock_item.stock_status, 15) || ' | ');
+    END LOOP;
+
+    -- End of detailed report
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD('-', 102, '-') || ' | ');
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Handle exceptions here (e.g., log the error, raise custom exception)
+        DBMS_OUTPUT.PUT_LINE('An error occurred: ' || SQLERRM);
+END;
+/
+
+-- Execute the procedure
+EXEC prc_inventory_status_reports;

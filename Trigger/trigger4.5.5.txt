@@ -1,0 +1,19 @@
+CREATE OR REPLACE TRIGGER trg_check_employee_age
+BEFORE INSERT ON Employees
+FOR EACH ROW
+DECLARE
+    v_employee_age NUMBER;
+BEGIN
+    -- Calculate the age of the employee based on their birthdate
+    v_employee_age := FLOOR(MONTHS_BETWEEN(SYSDATE, :new.DATE_OF_BIRTH) / 12);
+
+    -- Check if the employee is at least 18 years old
+    IF v_employee_age < 18 THEN
+        -- Raise an application error with a custom message and error number
+        RAISE_APPLICATION_ERROR(-20001, 'Employees must be at least 18 years old at the time of hire.');
+    END IF;
+
+    -- Assign the current date to the hire_date field
+    :new.hire_date := SYSDATE;
+END;
+/

@@ -1,0 +1,16 @@
+CREATE OR REPLACE TRIGGER Stock_PreventDuplicates
+BEFORE INSERT ON Stock_Item
+FOR EACH ROW
+DECLARE
+    stock_count NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO stock_count
+    FROM Stock_Item
+    WHERE UPPER(stock_name) = UPPER(:NEW.stock_name)
+      AND restaurant_id = :NEW.restaurant_id;
+
+    IF stock_count > 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Duplicate stock item name for ''' || :NEW.stock_name || ''' in Restaurant #' || :NEW.restaurant_id);
+    END IF;
+END;
+/

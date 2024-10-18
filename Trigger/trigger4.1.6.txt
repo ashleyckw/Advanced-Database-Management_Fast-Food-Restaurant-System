@@ -1,0 +1,33 @@
+CREATE OR REPLACE TRIGGER po_update_stock
+AFTER INSERT ON Purchase_Order
+FOR EACH ROW
+DECLARE
+    v_stock_id NUMBER;
+    v_quantity_ordered NUMBER;
+BEGIN
+    -- Fetch the relevant stock_id and quantity_ordered based on the Purchase_Order
+    BEGIN
+        SELECT pi.stock_id, pi.quantity_ordered
+        INTO v_stock_id, v_quantity_ordered
+        FROM Purchase_Item pi
+        WHERE pi.purchase_order_id = :new.purchase_order_id;
+
+        -- Update the last_stock_update field to the current date
+        UPDATE Stock_Item
+        SET last_stock_update = SYSDATE
+        WHERE stock_id = v_stock_id;
+
+        -- Check if the delivery date is today
+        IF TRUNC(:new.delivery_date) = TRUNC(SYSDATE) THEN
+            -- Add quantity ordered to stock quantity
+            UPDATE Stock_Item
+            SET stock_quantity = stock_quantity + v_quantity_ordered
+            WHERE stock_id = v_stock_id;
+        END IF;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            -- Handle the case where no data is found for the given purchase_order_id
+            DBMS_OUTPUT.PUT_LINE('No data found for purchase_order_id ' || :new.purchase_order_id);
+    END;
+END;
+/

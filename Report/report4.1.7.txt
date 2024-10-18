@@ -1,0 +1,116 @@
+-- Formatting
+SET SERVEROUTPUT ON
+SET LINESIZE 185
+SET PAGESIZE 50
+ALTER SESSION SET NLS_DATE_FORMAT = 'DD/MM/YYYY'; 
+
+-- Prompt user to input
+ACCEPT input_year CHAR PROMPT ' Enter the year (YYYY) : ' 
+ACCEPT input_category_code CHAR PROMPT ' Enter the category code (PI, SD, DK, DS, PA) : '
+
+CREATE OR REPLACE PROCEDURE MonthlySalesGrowthReport(input_year IN NUMBER, input_category_code IN VARCHAR2) AS
+    CURSOR sales_cursor IS
+        WITH months AS (
+            SELECT LEVEL as month_number, 
+                   TO_CHAR(TO_DATE(LEVEL || '-01-2000', 'MM-DD-YYYY'), 'MONTH') AS sales_month 
+            FROM DUAL
+            CONNECT BY LEVEL <= 12
+        ), sales_data AS (
+            SELECT 
+                EXTRACT(MONTH FROM o.order_date) AS sales_month_number,
+                COALESCE(fc.category_name, 'N/A') AS product_category,
+                SUM(oi.order_quantity) AS total_sales_quantity,
+                COALESCE(SUM(oi.order_quantity * fi.unit_price), 0) AS sales_amount
+            FROM 
+                Orders o
+                JOIN Order_Item oi ON o.order_id = oi.order_id
+                JOIN Food_Item fi ON oi.food_id = fi.food_id
+                JOIN Food_Category fc ON fi.category_id = fc.category_id
+                                      AND fc.category_code = input_category_code
+            WHERE EXTRACT(YEAR FROM o.order_date) = input_year
+            GROUP BY 
+                EXTRACT(MONTH FROM o.order_date),
+                fc.category_name
+        )
+	SELECT 
+    	    m.sales_month,
+    	    m.month_number,
+    	    COALESCE(sd.product_category, 'N/A') AS product_category,
+    	    COALESCE(sd.total_sales_quantity, 0) AS total_sales_quantity,
+    	    COALESCE(sd.sales_amount, 0) AS sales_amount
+	FROM months m
+	LEFT JOIN sales_data sd ON m.month_number = sd.sales_month_number
+	ORDER BY m.month_number;
+
+    previous_sales_amount NUMBER := 0;
+    growth NUMBER;
+    sales_performance VARCHAR2(50);
+
+BEGIN
+    -- Title
+    DBMS_OUTPUT.PUT_LINE(LPAD('=', 180, '='));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Report Generated On:', 154, ' ') || TO_CHAR(SYSDATE, 'DD/MM/YYYY HH24:MI:SS') || '    |');
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 177) || '|'); 
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 177) || '|');
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Summary Report', 100, ' ') || LPAD(' | ', 79));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD('Monthly Sales Growth Performance Compared to the Previous Month by ' || input_category_code || ' in ' || input_year, 132) || LPAD(' | ', 47));
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD(' ', 176) || ' | ');
+    
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 180, '-'));
+
+    -- Header
+    DBMS_OUTPUT.PUT_LINE('| ' || RPAD('Month', 10) || ' | ' ||
+                         RPAD('Category', 30) || ' | ' ||
+			 RPAD('Quantity', 30) || ' | ' ||
+                         RPAD('Sales', 20) || ' | ' ||
+                         RPAD('Prev. Sales', 20) || ' | ' ||
+                         RPAD('Growth (%)', 20) || ' | ' ||
+                         RPAD('Performance', 28) || ' | ');
+
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 180, '-'));
+
+    FOR sales_record IN sales_cursor LOOP
+        IF previous_sales_amount <> 0 THEN
+            growth := (sales_record.sales_amount - previous_sales_amount) / previous_sales_amount * 100;
+        
+            IF growth >= 0 THEN
+                sales_performance := CHR(27) || '[32mPositive' || CHR(27) || '[0m'; -- ANSI for green
+		sales_performance := RPAD(sales_performance, 12 + 21);
+            ELSE
+                sales_performance := CHR(27) || '[31mNegative' || CHR(27) || '[0m'; -- ANSI for red
+		sales_performance := RPAD(sales_performance, 12 + 21);
+            END IF;
+	ELSE
+    	    growth := 0;
+    	    sales_performance := RPAD('N/A', 3 + 25);  -- Add spaces for the length of N/A to match the length when colors are added
+	END IF;
+
+        DBMS_OUTPUT.PUT_LINE('| ' || RPAD(sales_record.sales_month, 10) || ' | ' || 
+                             RPAD(sales_record.product_category, 30) || ' | ' ||
+                             RPAD(TO_CHAR(sales_record.total_sales_quantity, '9,999'), 30) || ' | ' ||
+                             RPAD(TO_CHAR(sales_record.sales_amount, '9,999.99'), 20) || ' | ' || 
+                             RPAD(TO_CHAR(previous_sales_amount, '9,999.99'), 20) || ' | ' || 
+                             RPAD(TO_CHAR(growth, '999.99'), 20) || ' | ' || 
+                             sales_performance);
+
+        previous_sales_amount := sales_record.sales_amount;
+    END LOOP;
+    
+    -- Footer
+    DBMS_OUTPUT.PUT_LINE(LPAD('-', 180, '-'));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 177) || '|'); 
+    DBMS_OUTPUT.PUT_LINE('| '||LPAD('End Of Report',100,' ') || ' ' || LPAD(' | ',78));
+    DBMS_OUTPUT.PUT_LINE('| ' || LPAD(' ', 177) || '|'); 
+    DBMS_OUTPUT.PUT_LINE(LPAD('=', 180, '='));
+
+END MonthlySalesGrowthReport;
+/
+
+-- Execute the procedure
+EXEC MonthlySalesGrowthReport(&input_year, '&input_category_code');
+
+--- Clear formatting
+CLEAR COLUMNS
+CLEAR BREAKS
+CLEAR COMPUTES
+TTITLE OFF

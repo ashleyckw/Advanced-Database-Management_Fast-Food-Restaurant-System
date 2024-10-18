@@ -1,0 +1,13 @@
+-- Test the Delete_Customer_Account procedure with a sample customer ID
+
+-- Assuming you have a customer with ID 1234 in your Customers table
+DECLARE
+    v_customer_id NUMBER := 3;  -- Replace with the actual customer ID you want to delete
+BEGIN
+    Delete_Customer_Account(v_customer_id);
+    -- If the procedure executes without errors, it will anonymize the customer's data.
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLERRM);
+END;
+/

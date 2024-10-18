@@ -1,0 +1,8 @@
+-- Attempt to insert an employee younger than 18
+BEGIN
+    INSERT INTO Employees (employee_id, first_name, last_name, email, phone, hire_date, job_title, restaurant_id, DATE_OF_BIRTH)
+    VALUES (EMPLOYEES_SEQ.nextval, 'John', 'Doe', 'john@example.com', '+123 456 7890', TO_DATE('2023-01-01', 'YYYY-MM-DD'), 'Manager', 1, TO_DATE('2006-01-01', 'YYYY-MM-DD'));
+EXCEPTION
+    WHEN OTHERS THEN
+        DBMS_OUTPUT.PUT_LINE('Error: ' || SQLCODE || ' - ' || SQLERRM);
+END;

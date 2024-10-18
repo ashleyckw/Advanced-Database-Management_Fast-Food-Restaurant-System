@@ -1,0 +1,24 @@
+CREATE OR REPLACE TRIGGER CheckSalaryGrade
+BEFORE INSERT OR UPDATE ON Employees
+FOR EACH ROW
+DECLARE
+    v_min_salary Salary_Grades.Min_Salary%TYPE;
+    v_max_salary Salary_Grades.Max_Salary%TYPE;
+BEGIN
+    -- Retrieve the minimum and maximum salary for the assigned grade
+    SELECT Min_Salary, Max_Salary
+    INTO v_min_salary, v_max_salary
+    FROM Salary_Grades
+    WHERE Grade_ID = :NEW.Sal_Grade;
+
+    -- Check if the new salary is within the salary grade range
+    IF :NEW.Salary < v_min_salary OR :NEW.Salary > v_max_salary THEN
+        -- Raise an error with a descriptive message
+        RAISE_APPLICATION_ERROR(-20001, 'Salary is outside the salary grade range. Salary must be between ' || v_min_salary || ' and ' || v_max_salary || '.');
+    ELSE
+        -- Insert an audit log record when the validation is successful
+        INSERT INTO Salary_Audit_Log (event_date, employee_id, validation_result)
+        VALUES (SYSTIMESTAMP, :NEW.Employee_ID, 'Salary validation successful');
+    END IF;
+END;
+/

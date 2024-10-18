@@ -1,0 +1,11 @@
+DECLARE
+    v_food_name VARCHAR2(255) := 'New Menu Item';
+    v_food_description VARCHAR2(255) := 'A delicious new menu item';
+    v_unit_price NUMBER := 10.99;
+    v_food_price NUMBER := 15.99;
+    v_category_id NUMBER := 1;
+BEGIN
+    -- Call the ADD_NEW_MENU_ITEM procedure with sample data
+    ADD_NEW_MENU_ITEM(v_food_name, v_food_description, v_unit_price, v_food_price, v_category_id);
+END;
+/
